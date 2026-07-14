@@ -1,0 +1,24 @@
+customtkinter>=5.2.0
+python-pptx>=0.6.21
+python-docx>=1.1.0
+pygame>=2.5.0
+mutagen>=1.47.0
+Pillow>=10.0.0
+qrcode>=7.4.0
+yt-dlp>=2024.1.0
+imageio-ffmpeg>=0.4.9
+pymupdf>=1.24.0
+screeninfo>=0.8.1
+tkinterdnd2>=0.4.0
+certifi>=2024.0.0
+ffpyplayer>=4.5.0
+
+# Serve per "Aggiungi versione/lingua" in Impostazioni → Bibbia (converte i
+# file .bib in SQLite tramite tools/convert_bib.py) — l'app funziona anche
+# senza, semplicemente quella funzione mostra un messaggio se manca.
+access-parser>=0.0.6
+
+# Solo Windows: controllo della presentazione PowerPoint (slide avanti/
+# indietro, chiudi) via COM — senza, quei comandi sono no-op e l'operatore
+# usa il telecomando/la tastiera (core/projector.py è già pronto a entrambi).
+pywin32>=306; sys_platform == "win32"

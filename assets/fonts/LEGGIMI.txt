@@ -1,0 +1,30 @@
+Font Inter — installazione (una tantum, su ogni computer che userà l'app)
+==========================================================================
+
+L'app usa il font "Inter" per un aspetto coerente su Mac e Windows. Non viene
+installato automaticamente (limite tecnico della libreria grafica usata
+dall'app) — va installato una sola volta, sullo stesso principio già seguito
+per Microsoft PowerPoint.
+
+Se non è installato, l'app continua a funzionare normalmente usando il font
+di sistema al suo posto — non è un problema bloccante, solo estetico.
+
+Mac
+---
+1. Apri il file Inter-Variable.ttf in questa cartella (doppio click).
+2. Si apre "Libro Font" (Font Book) con l'anteprima del font.
+3. Clicca "Installa font" in alto a destra.
+4. Riavvia l'app "Programma Servizio" se era già aperta.
+
+Windows
+-------
+1. Fai click destro sul file Inter-Variable.ttf in questa cartella.
+2. Scegli "Installa" (o "Installa per tutti gli utenti" se disponibile).
+3. Riavvia l'app "Programma Servizio" se era già aperta.
+
+Note
+----
+- È un font "variabile" (un solo file copre tutti i pesi, da sottile a
+  grassetto) — un'unica installazione basta.
+- Licenza: SIL Open Font License 1.1 (vedi OFL.txt in questa cartella) —
+  libero da usare, modificare e distribuire insieme all'app.

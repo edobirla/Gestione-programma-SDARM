@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: #ff00ff; }
+  .cell {
+    width: 96px; height: 96px; background: #ff00ff;
+    display: flex; align-items: center; justify-content: center;
+    position: absolute;
+  }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script>
+const ICONS = {
+  scaletta: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  inno: '<path d="M8.2 5.2 C5.4 5.6 4.3 8 5 10.3 C5.6 12.3 7.3 13 7.3 15.2 C7.3 16.6 6.5 17.2 6.5 17.2"/>' +
+        '<path d="M15.8 5.2 C18.6 5.6 19.7 8 19 10.3 C18.4 12.3 16.7 13 16.7 15.2 C16.7 16.6 17.5 17.2 17.5 17.2"/>' +
+        '<path d="M8.6 6.6 L15.4 6.6"/>' +
+        '<path d="M10 6.6 L10 15.5 M12 6.6 L12 15.5 M14 6.6 L14 15.5"/>' +
+        '<path d="M6.5 17.2 C8.5 19 15.5 19 17.5 17.2"/>' +
+        '<path d="M12 17.6 L12 19.2"/>',
+  bibbia: '<path d="M12 6.6 C10.2 5.1 6.6 4.6 4.4 5 V18 C6.6 17.6 10.2 18.1 12 19.6 C13.8 18.1 17.4 17.6 19.6 18 V5 C17.4 4.6 13.8 5.1 12 6.6 Z"/>' +
+          '<path d="M12 6.6 V19.6"/>',
+  preghiere: '<path d="M12 20 C12 20 4 14.5 4 9 C4 6.2 6.2 4 9 4 C10.5 4 11.5 4.8 12 5.6 C12.5 4.8 13.5 4 15 4 C17.8 4 20 6.2 20 9 C20 14.5 12 20 12 20 Z"/>',
+  media: '<path d="M6 4l13 8-13 8V4z"/>',
+  impostazioni: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1h.1a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
+};
+const VARIANTS = {
+  "muted-light": "#474b50",
+  "muted-dark": "#8c8f95",
+  "white": "#ffffff",
+};
+// ── Category icons for the "Aggiungi elemento" modal (Fase 1) — each is
+// rendered ONCE, at its own SLOT_COLORS hue (single file, theme-invariant,
+// same convention as theme.icon()'s non-"muted" branch). Paths/shapes copied
+// verbatim from design/Redesign.dc.html frame 1c's per-category SVGs.
+const CAT_ICONS = {
+  inno: '<path d="M8.2 5.2 C5.4 5.6 4.3 8 5 10.3 C5.6 12.3 7.3 13 7.3 15.2 C7.3 16.6 6.5 17.2 6.5 17.2"/>' +
+        '<path d="M15.8 5.2 C18.6 5.6 19.7 8 19 10.3 C18.4 12.3 16.7 13 16.7 15.2 C16.7 16.6 17.5 17.2 17.5 17.2"/>' +
+        '<path d="M8.6 6.6 L15.4 6.6"/><path d="M10 6.6 L10 15.5 M12 6.6 L12 15.5 M14 6.6 L14 15.5"/>' +
+        '<path d="M6.5 17.2 C8.5 19 15.5 19 17.5 17.2"/>',
+  versetto: '<path d="M12 6.6 C10.2 5.1 6.6 4.6 4.4 5 V18 C6.6 17.6 10.2 18.1 12 19.6 C13.8 18.1 17.4 17.6 19.6 18 V5 C17.4 4.6 13.8 5.1 12 6.6 Z"/><path d="M12 6.6 V19.6"/>',
+  lezione: '<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8 9h8M8 13h5"/>',
+  presentazione: '<rect x="3.5" y="5" width="17" height="11" rx="1.6"/><path d="M9 20h6M12 16v4"/>',
+  timer: '<circle cx="12" cy="13" r="7.5"/><path d="M12 13V9M9.5 3.5h5M12 13l3 2"/>',
+  audio: '<path d="M9 17V6l10-2v11"/><circle cx="7" cy="17" r="2.3"/><circle cx="17" cy="15" r="2.3"/>',
+  video: '<rect x="3.5" y="6" width="12" height="12" rx="2"/><path d="M15.5 10.5l5-2.7v8.4l-5-2.7z"/>',
+  documento: '<path d="M6.5 3.5h8l4 4V20a1 1 0 01-1 1h-11a1 1 0 01-1-1V4.5a1 1 0 011-1z"/><path d="M14 3.5V8h4"/>',
+  qrcode: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M15 15h2v2h-2zM19 15h1M15 19h1M19 19h1"/>',
+  testo: '<path d="M5 5.5h14M12 5.5V19M9 19h6"/>',
+  preghiera: '<path d="M12 20 C12 20 4 14.5 4 9 C4 6.2 6.2 4 9 4 C10.5 4 11.5 4.8 12 5.6 C12.5 4.8 13.5 4 15 4 C17.8 4 20 6.2 20 9 C20 14.5 12 20 12 20 Z"/>',
+};
+// Hex values must match ui/theme.py SLOT_COLORS exactly.
+const CAT_COLORS = {
+  inno: "#888dec", versetto: "#de7949", lezione: "#5aae5f",
+  presentazione: "#00b1ba", timer: "#e38d3d", audio: "#12b382",
+  video: "#6198ee", documento: "#8f9298", qrcode: "#8f9298",
+  testo: "#cb86db", preghiera: "#ee7c90",
+};
+const names = Object.keys(ICONS);
+const variants = Object.keys(VARIANTS);
+const catNames = Object.keys(CAT_ICONS);
+const grid = document.getElementById("grid");
+document.body.style.width = (Math.max(names.length, catNames.length) * 96) + "px";
+document.body.style.height = ((variants.length + 1) * 96) + "px";
+let manifest = [];
+variants.forEach((v, row) => {
+  names.forEach((name, col) => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.style.left = (col * 96) + "px";
+    cell.style.top = (row * 96) + "px";
+    const svg = `<svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="${VARIANTS[v]}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+    cell.innerHTML = svg;
+    grid.appendChild(cell);
+    manifest.push({name, variant: v, x: col * 96, y: row * 96, w: 96, h: 96});
+  });
+});
+// One extra row: category icons, each in its own fixed hue ("category" variant).
+const catRow = variants.length;
+catNames.forEach((name, col) => {
+  const cell = document.createElement("div");
+  cell.className = "cell";
+  cell.style.left = (col * 96) + "px";
+  cell.style.top = (catRow * 96) + "px";
+  const svg = `<svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="${CAT_COLORS[name]}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${CAT_ICONS[name]}</svg>`;
+  cell.innerHTML = svg;
+  grid.appendChild(cell);
+  manifest.push({name, variant: "category", x: col * 96, y: catRow * 96, w: 96, h: 96});
+});
+window.__manifest = manifest;
+</script>
+</body>
+</html>

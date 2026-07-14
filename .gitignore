@@ -1,0 +1,23 @@
+# Build output (ricreato da packaging/build_*.sh/.bat)
+dist/
+build/
+*.spec.bak
+
+# Dati utente locali (impostazioni, cronologia, cache) — generati a runtime,
+# non vanno versionati (vedi core/paths.py)
+config/
+
+# File di test personali enormi, non necessari alla build
+file test/
+LND1991.bib
+LND1991.exe
+design.zip
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS / editor
+.DS_Store
+.obsidian/
+.claude/settings.local.json
