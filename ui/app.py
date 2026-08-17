@@ -874,6 +874,35 @@ class App(ctk.CTk):
                           command=confirm).pack(side="right", padx=4)
         self._open_modal(title, build, width=420, height=230)
 
+    def _ask_multiline(self, title: str, on_ok: Callable[[str], None],
+                       initial: str = "", label: str = ""):
+        """Like _ask_text but for a paragraph, and an empty result is a valid
+        answer (it clears the field) rather than a silent cancel."""
+        def build(body):
+            if label:
+                ctk.CTkLabel(body, text=label, anchor="w", text_color=TEXT_TERTIARY,
+                             font=theme.font_body(11), wraplength=420,
+                             justify="left").pack(fill="x")
+            box = ctk.CTkTextbox(body, height=180, corner_radius=12, fg_color=CARD_ROW,
+                                 text_color=TEXT_PRIMARY, font=theme.font_body(13))
+            box.pack(fill="both", expand=True, pady=(4, 14))
+            box.insert("0.0", initial)
+            _bind_textbox_scroll(box)
+            box.focus_set()
+
+            def confirm():
+                val = box.get("0.0", "end").strip()
+                self._close_modal()
+                on_ok(val)
+            btns = ctk.CTkFrame(body, fg_color="transparent")
+            btns.pack(fill="x")
+            ctk.CTkButton(btns, text="Annulla", width=100, fg_color=BTN_SECONDARY,
+                          text_color=TEXT_SECONDARY, hover_color=BTN_SECONDARY_HOVER,
+                          command=self._close_modal).pack(side="right", padx=4)
+            ctk.CTkButton(btns, text="Salva", width=100,
+                          command=confirm).pack(side="right", padx=4)
+        self._open_modal(title, build, width=520, height=380)
+
     def _ask_confirm(self, title: str, message: str, on_yes: Callable[[], None],
                      confirm_text: str = "Elimina"):
         def build(body):
@@ -1859,7 +1888,8 @@ class App(ctk.CTk):
                            self._render_center()))
                        ).pack(side="left", padx=2)
 
-        if self._graphic_profile("domanda").get("template", ""):
+        if self._graphic_profile("domanda").get("template", "") \
+                or self._graphic_profile("introduzione").get("template", ""):
             photo_row = ctk.CTkFrame(frame, fg_color="transparent")
             photo_row.pack(fill="x", pady=(6, 0))
             cur_photo = self._lesson_photo(les)
@@ -1871,6 +1901,8 @@ class App(ctk.CTk):
                           text_color=TEXT_SECONDARY, font=theme.font_body(11, bold=True),
                           command=lambda: self._pick_lesson_photo(les)
                           ).pack(side="left", padx=8)
+
+        self._lesson_intro_card(frame, les, slot)
 
         # live-projection status — only shown when the domanda being browsed
         # right now is the exact one on screen, so it's clear that browsing
@@ -1982,6 +2014,55 @@ class App(ctk.CTk):
                       fg_color=BTN_SECONDARY, hover_color=BTN_SECONDARY_HOVER,
                       text_color=TEXT_SECONDARY, font=theme.font_body(12, bold=True),
                       command=lambda: self._goto_settings("lezione")).pack(anchor="w", pady=(14, 4))
+
+    def _lesson_intro_card(self, frame, les, slot):
+        """Opening slide of the lezione — title, key verse, introductory note
+        over the week's photo. Title and photo come from the lesson itself;
+        verse and note come from the JSON when it has them (versetto_chiave /
+        nota_introduttiva) and are otherwise typed here."""
+        verse, note = self._lesson_intro(les)
+        ctk.CTkLabel(frame, text="INTRODUZIONE", font=theme.font_label(10),
+                     text_color=TEXT_LABEL).pack(anchor="w", pady=(16, 6))
+        card = ctk.CTkFrame(frame, fg_color=CARD, corner_radius=13)
+        card.pack(fill="x")
+        col = ctk.CTkFrame(card, fg_color="transparent")
+        col.pack(side="left", fill="both", expand=True, padx=14, pady=12)
+        ctk.CTkLabel(col, text=self._lesson_title_text(les), anchor="w",
+                     font=theme.font_body(14, bold=True), text_color=TEXT_PRIMARY,
+                     wraplength=400, justify="left").pack(anchor="w")
+        ctk.CTkLabel(col, text=verse or "Nessun versetto chiave",
+                     anchor="w", text_color=SLOT_COLORS["versetto"] if verse else TEXT_FAINT,
+                     font=theme.font_body(12), wraplength=400,
+                     justify="left").pack(anchor="w", pady=(4, 0))
+        preview = note if len(note) <= 260 else note[:260] + "…"
+        ctk.CTkLabel(col, text=preview or "Nessuna nota introduttiva",
+                     anchor="w", text_color=TEXT_SECONDARY if note else TEXT_FAINT,
+                     font=theme.font_body(12), wraplength=400,
+                     justify="left").pack(anchor="w", pady=(4, 0))
+        edit = ctk.CTkFrame(col, fg_color="transparent")
+        edit.pack(anchor="w", pady=(8, 0))
+        ctk.CTkButton(edit, text="Versetto chiave…", width=140, height=26, corner_radius=10,
+                      fg_color=BTN_SECONDARY, hover_color=BTN_SECONDARY_HOVER,
+                      text_color=TEXT_SECONDARY, font=theme.font_body(11, bold=True),
+                      command=lambda: self._ask_multiline(
+                          "Versetto chiave", lambda v: (self._set_lesson_intro(les, verse=v),
+                                                        self._render_center()),
+                          initial=verse,
+                          label="Testo del versetto chiave della lezione.")
+                      ).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(edit, text="Nota introduttiva…", width=150, height=26, corner_radius=10,
+                      fg_color=BTN_SECONDARY, hover_color=BTN_SECONDARY_HOVER,
+                      text_color=TEXT_SECONDARY, font=theme.font_body(11, bold=True),
+                      command=lambda: self._ask_multiline(
+                          "Nota introduttiva", lambda v: (self._set_lesson_intro(les, note=v),
+                                                          self._render_center()),
+                          initial=note,
+                          label="Breve testo introduttivo mostrato nella diapositiva iniziale.")
+                      ).pack(side="left")
+        ctk.CTkButton(card, text="Proietta introduzione", height=32, corner_radius=11,
+                      font=theme.font_body(12, bold=True), fg_color=ACCENT, hover_color=ACCENT_HOVER,
+                      command=lambda: (self._mark_projected(slot), self._project_lesson_intro())
+                      ).pack(side="right", padx=14, pady=12)
 
     def _detail_predica(self, frame, slot):
         box = ctk.CTkTextbox(frame, height=200, corner_radius=12, fg_color=CARD_ROW,
@@ -2563,6 +2644,7 @@ class App(ctk.CTk):
             font=theme.font_body(10, bold=True),
             fg_color=DANGER_FILL, hover_color=DANGER_FILL_HOVER, text_color=DANGER_FILL_TEXT,
             command=self._stop_projection)
+        self._np_stop_packed = False  # fresh button: nothing packed yet
         # dynamic area: shows cards only when something is active
         self._np_box = ctk.CTkFrame(panel, fg_color="transparent")
         self._np_box.pack(fill="x", pady=(0, 18))
@@ -2609,44 +2691,52 @@ class App(ctk.CTk):
                 pass
         self._np_after_id = self.after(delay, self._refresh_now_playing)
 
-    def _np_wanted_cards(self):
-        """(title, kind) pairs the now-playing box should show right now —
-        computed without touching any widget so it can be compared tick to
-        tick to decide whether a rebuild is actually needed."""
+    def _np_cards(self):
+        """[(kind, title)] the now-playing box should show right now.
+
+        `kind` alone is the card's IDENTITY — _refresh_now_playing diffs on
+        kinds only. `title` and every other changing detail (slide counter,
+        track name, play/pause glyph, seek position) is pushed into the
+        widgets already on screen by _np_update_live. Folding those volatile
+        bits into the diff key, as this used to, meant every slide advance /
+        verse step / play-pause destroyed and recreated the whole control
+        row 700ms later — the controls visibly blinking on the right while
+        projecting."""
         cards = []
         proj_mode = self._proj_mode
-        if proj_mode in ("slides", "textslides") and self._projection and self._projection.winfo_exists():
+        live = self._projection and self._projection.winfo_exists()
+        if proj_mode in ("slides", "textslides") and live:
             i = self._projection.slide_index + 1
             n = self._projection.slide_count
-            prefix = getattr(self, "_proj_pill_prefix", "")
-            title = f"{prefix}  {i}/{n}" if prefix else f"Diapositive  {i}/{n}"
-            cards.append((title, "slides"))
+            prefix = getattr(self, "_proj_pill_prefix", "") or "Diapositive"
+            cards.append(("slides", f"{prefix}  {i}/{n}"))
+        elif proj_mode == "external":
+            # PowerPoint drives its own window; the app can still step it and
+            # end the show (see _proj_registry), so it gets a card too.
+            cards.append(("external", self._np_pill_text("PowerPoint")))
         elif proj_mode == "video" and self._video:
-            v = self._video
-            cards.append((f"Video|{v.is_paused}", "video"))
-        elif proj_mode == "verse" and self._projection and self._projection.winfo_exists():
-            pill = self._proj_pill.cget("text") if hasattr(self, "_proj_pill") else ""
-            label = pill.lstrip("● ").strip() or "Versetto"
-            cards.append((label, "verse"))
-        elif proj_mode == "lezione" and self._projection and self._projection.winfo_exists():
-            pill = self._proj_pill.cget("text") if hasattr(self, "_proj_pill") else ""
-            label = pill.lstrip("● ").strip() or "Lezione"
-            cards.append((label, "lezione"))
-        elif proj_mode in ("text", "cover", "timer") and \
-                self._projection and self._projection.winfo_exists():
-            pill = self._proj_pill.cget("text") if hasattr(self, "_proj_pill") else ""
-            label = pill.lstrip("● ").strip() or proj_mode.capitalize()
-            cards.append((label, "other"))
+            cards.append(("video", "Video"))
+        elif proj_mode == "verse" and live:
+            cards.append(("verse", self._np_pill_text("Versetto")))
+        elif proj_mode == "lezione" and live:
+            cards.append(("lezione", self._np_pill_text("Lezione")))
+        elif proj_mode == "prayer" and live:
+            cards.append(("prayer", self._np_pill_text("Preghiera")))
+        elif proj_mode in ("text", "cover", "timer", "immagine", "qr") and live:
+            cards.append(("other", self._np_pill_text(proj_mode.capitalize())))
 
         m = self._audio.music
         if m.has_media and (m.is_playing or m.is_paused):
-            cards.append((f"{m.label or 'Audio'}|{m.is_playing}", "main"))
+            cards.append(("main", m.label or "Audio"))
 
         if self._audio.pause_music_is_playing():
             track = self._audio.current_pause_track()
-            name = os.path.basename(track) if track else "Musica pausa"
-            cards.append((name, "pause"))
+            cards.append(("pause", os.path.basename(track) if track else "Musica pausa"))
         return cards
+
+    def _np_pill_text(self, fallback: str) -> str:
+        pill = self._proj_pill.cget("text") if hasattr(self, "_proj_pill") else ""
+        return pill.lstrip("● ").strip() or fallback
 
     def _refresh_now_playing(self):
         if not hasattr(self, "_np_box") or not self._np_box.winfo_exists():
@@ -2658,48 +2748,59 @@ class App(ctk.CTk):
             self._schedule_np_refresh()
             return
 
-        wanted = self._np_wanted_cards()
-        # Destroying and recreating every card on every 700ms tick — even
-        # when nothing changed — made a freshly-built CTkFrame briefly show
-        # Tk's raw background before customtkinter applied the theme color
-        # (the same flash documented on _center_scroll above), which reads
-        # as a constant flicker on Windows. Only rebuild when what should be
-        # shown actually changed; otherwise just push the new slider
-        # position / elapsed time into the widgets already on screen.
-        if wanted == getattr(self, "_np_last_wanted", None) and self._np_box.winfo_children():
-            self._np_update_live()
+        cards = self._np_cards()
+        kinds = [k for k, _t in cards]
+        if kinds == getattr(self, "_np_last_kinds", None) and self._np_box.winfo_children():
+            self._np_update_live(cards)
             self._schedule_np_refresh()
             return
-        self._np_last_wanted = wanted
+        self._np_last_kinds = kinds
 
         for w in self._np_box.winfo_children():
             w.destroy()
         self._np_live = {}
+        self._np_titles = {}
+        self._np_play_btns = {}
+        self._np_nota_btn = None
+        self._np_nota_enabled = None
 
-        for title, kind in wanted:
-            self._np_card(self._np_box, title.split("|", 1)[0], kind)
+        for kind, title in cards:
+            self._np_card(self._np_box, title, kind)
 
         if not self._np_box.winfo_children():
             ctk.CTkLabel(self._np_box, text="Niente in proiezione", anchor="w",
                          font=theme.font_body(12), text_color=TEXT_FAINT).pack(fill="x")
 
         if hasattr(self, "_right_stop_btn") and self._right_stop_btn.winfo_exists():
-            if self._proj_mode is not None:
-                self._right_stop_btn.pack(side="right", padx=(0, 6))
-            else:
-                self._right_stop_btn.pack_forget()
+            want_stop = self._proj_mode is not None
+            # pack() on an already-packed widget re-appends it, which would
+            # swap it past the collapse arrow every refresh — only touch the
+            # geometry manager when the wanted state actually changed.
+            if want_stop != getattr(self, "_np_stop_packed", None):
+                self._np_stop_packed = want_stop
+                if want_stop:
+                    self._right_stop_btn.pack(side="right", padx=(0, 6))
+                else:
+                    self._right_stop_btn.pack_forget()
 
         self._restyle_quick_cmd_btns()
+        self._np_update_live(cards)
         try:
             self._schedule_np_refresh()
         except Exception:
             pass
 
-    def _np_update_live(self):
-        """Lightweight per-tick update for cards left in place (see
-        _refresh_now_playing): just the slider position and elapsed-time
-        label, no widget destruction."""
+    def _np_update_live(self, cards=None):
+        """Per-tick update for cards left in place (see _refresh_now_playing):
+        titles, play/pause glyphs, seek sliders and elapsed time — never any
+        widget creation or destruction."""
+        for kind, title in (cards if cards is not None else self._np_cards()):
+            lbl = getattr(self, "_np_titles", {}).get(kind)
+            if lbl is not None and lbl.winfo_exists() and lbl.cget("text") != title:
+                lbl.configure(text=title)
+
         live = getattr(self, "_np_live", {})
+        play_btns = getattr(self, "_np_play_btns", {})
         m = self._audio.music
         if "main" in live and m.has_media:
             dur = m.duration or 0
@@ -2708,6 +2809,8 @@ class App(ctk.CTk):
                 slider.set(min(1000, (m.position / dur) * 1000))
             if lbl.winfo_exists():
                 lbl.configure(text=f"{_fmt_time(m.position)} / {_fmt_time(dur)}")
+        if "main" in play_btns:
+            self._np_set_glyph(play_btns["main"], "⏸" if m.is_playing else "▶")
         v = self._video
         if "video" in live and v:
             dur = v.duration or 0
@@ -2716,23 +2819,54 @@ class App(ctk.CTk):
                 slider.set(min(1000, (v.position / dur) * 1000))
             if lbl.winfo_exists():
                 lbl.configure(text=f"{_fmt_time(v.position)} / {_fmt_time(dur)}")
+        if "video" in play_btns and v:
+            self._np_set_glyph(play_btns["video"], "▶" if v.is_paused else "⏸")
+
+        btn = getattr(self, "_np_nota_btn", None)
+        if btn is not None and btn.winfo_exists():
+            dom = self._np_current_domanda()
+            on = bool(dom and dom["note"])
+            if on != self._np_nota_enabled:
+                self._np_nota_enabled = on
+                btn.configure(state="normal" if on else "disabled")
+
+    @staticmethod
+    def _np_set_glyph(btn, text):
+        if btn.winfo_exists() and btn.cget("text") != text:
+            btn.configure(text=text)
+
+    def _np_current_domanda(self):
+        """The domanda the lezione projection is currently on, or None."""
+        _ls, les = self._current_lesson()
+        if not les:
+            return None
+        domande = lesson.flatten_domande(les)
+        idx = getattr(self, "_proj_lesson_idx", 0)
+        return domande[idx] if 0 <= idx < len(domande) else None
 
     def _np_card(self, parent, title, kind):
         card = ctk.CTkFrame(parent, fg_color=SEL_BG, corner_radius=14,
                             border_width=1, border_color=SEL_BORDER)
         card.pack(fill="x", pady=3)
-        ctk.CTkLabel(card, text=title, anchor="w", font=theme.font_body(13, bold=True),
-                     text_color=TEXT_PRIMARY, wraplength=190).pack(fill="x", padx=10, pady=(8, 4))
+        title_lbl = ctk.CTkLabel(card, text=title, anchor="w", font=theme.font_body(13, bold=True),
+                                 text_color=TEXT_PRIMARY, wraplength=190)
+        title_lbl.pack(fill="x", padx=10, pady=(8, 4))
+        self._np_titles[kind] = title_lbl
         row = ctk.CTkFrame(card, fg_color="transparent")
         row.pack(fill="x", padx=4, pady=(0, 6))
-        if kind == "slides":
+        if kind in ("slides", "external"):
             ctk.CTkButton(row, text="‹", width=46, height=32, font=("", 18),
                           command=self._slide_prev).pack(side="left", padx=2)
             ctk.CTkButton(row, text="›", width=46, height=32, font=("", 18),
                           command=self._slide_next).pack(side="left", padx=2)
-            ctk.CTkButton(row, text="⬛", width=36, height=32,
-                          fg_color=("gray70", "gray20"), hover_color=("gray60", "gray15"),
-                          command=self._proj_black).pack(side="right", padx=2)
+            if kind == "slides":
+                ctk.CTkButton(row, text="⬛", width=36, height=32,
+                              fg_color=("gray70", "gray20"), hover_color=("gray60", "gray15"),
+                              command=self._proj_black).pack(side="right", padx=2)
+            else:
+                ctk.CTkButton(row, text="■", width=36, height=32,
+                              fg_color=("gray70", "gray20"), hover_color="#dc2626",
+                              command=self._stop_projection).pack(side="right", padx=2)
         elif kind == "other":
             ctk.CTkButton(row, text="⬛", width=36, height=32,
                           fg_color=("gray70", "gray20"), hover_color=("gray60", "gray15"),
@@ -2740,7 +2874,7 @@ class App(ctk.CTk):
             ctk.CTkButton(row, text="■  Stop", width=80, height=32,
                           fg_color=("gray70", "gray20"), hover_color="#dc2626",
                           command=self._stop_projection).pack(side="left", padx=2)
-        elif kind == "verse":
+        elif kind in ("verse", "prayer"):
             ctk.CTkButton(row, text="‹", width=36, height=32, font=("", 16),
                           command=self._slide_prev).pack(side="left", padx=2)
             ctk.CTkButton(row, text="›", width=36, height=32, font=("", 16),
@@ -2752,30 +2886,42 @@ class App(ctk.CTk):
                           fg_color=("gray70", "gray20"), hover_color="#dc2626",
                           command=self._stop_projection).pack(side="left", padx=2)
         elif kind == "lezione":
-            ctk.CTkButton(row, text="‹", width=36, height=32, font=("", 16),
+            ctk.CTkButton(row, text="‹", width=34, height=32, font=("", 16),
                           command=self._slide_prev).pack(side="left", padx=2)
-            ctk.CTkButton(row, text="›", width=36, height=32, font=("", 16),
+            ctk.CTkButton(row, text="›", width=34, height=32, font=("", 16),
                           command=self._slide_next).pack(side="left", padx=2)
-            _ls, les = self._current_lesson()
-            domande = lesson.flatten_domande(les) if les else []
-            idx = getattr(self, "_proj_lesson_idx", 0)
-            dom = domande[idx] if 0 <= idx < len(domande) else None
-            if dom and dom["note"]:
-                ctk.CTkButton(row, text="Nota", width=46, height=32,
-                              command=lambda i=idx: self._project_lesson_note(i)
-                              ).pack(side="left", padx=2)
             ctk.CTkButton(row, text="⬛", width=32, height=32,
                           fg_color=("gray70", "gray20"), hover_color=("gray60", "gray15"),
                           command=self._proj_black).pack(side="left", padx=2)
             ctk.CTkButton(row, text="■", width=32, height=32,
                           fg_color=("gray70", "gray20"), hover_color="#dc2626",
                           command=self._stop_projection).pack(side="left", padx=2)
+            # Second row: switch between the three things a lezione day can
+            # project. Reading _proj_lesson_idx at click time (not capturing
+            # it) is what lets "Domanda" come back from a nota/versetto to
+            # whatever question is current, however far the operator stepped.
+            row2 = ctk.CTkFrame(card, fg_color="transparent")
+            row2.pack(fill="x", padx=4, pady=(0, 6))
+            ctk.CTkButton(row2, text="Domanda", height=28, corner_radius=11,
+                          font=theme.font_body(11, bold=True),
+                          command=lambda: self._project_lesson_domanda(
+                              getattr(self, "_proj_lesson_idx", 0))
+                          ).pack(side="left", fill="x", expand=True, padx=2)
+            self._np_nota_btn = ctk.CTkButton(
+                row2, text="Nota", height=28, corner_radius=11,
+                fg_color=BTN_SECONDARY, hover_color=BTN_SECONDARY_HOVER,
+                text_color=TEXT_SECONDARY, font=theme.font_body(11, bold=True),
+                command=lambda: self._project_lesson_note(
+                    getattr(self, "_proj_lesson_idx", 0)))
+            self._np_nota_btn.pack(side="left", fill="x", expand=True, padx=2)
         elif kind == "main":
             m = self._audio.music
             ctk.CTkButton(row, text="↺", width=36, height=28,
                           command=m.restart).pack(side="left", padx=2)
-            ctk.CTkButton(row, text="⏸" if m.is_playing else "▶", width=42, height=28,
-                          command=m.toggle).pack(side="left", padx=2)
+            btn = ctk.CTkButton(row, text="⏸" if m.is_playing else "▶", width=42, height=28,
+                                command=m.toggle)
+            btn.pack(side="left", padx=2)
+            self._np_play_btns["main"] = btn
             ctk.CTkButton(row, text="■", width=36, height=28,
                           command=m.stop).pack(side="left", padx=2)
             dur = m.duration or 0
@@ -2805,8 +2951,10 @@ class App(ctk.CTk):
             v = self._video
             ctk.CTkButton(row, text="↺", width=34, height=28,
                           command=v.restart).pack(side="left", padx=2)
-            ctk.CTkButton(row, text="▶" if v.is_paused else "⏸", width=40, height=28,
-                          command=v.toggle).pack(side="left", padx=2)
+            btn = ctk.CTkButton(row, text="▶" if v.is_paused else "⏸", width=40, height=28,
+                                command=v.toggle)
+            btn.pack(side="left", padx=2)
+            self._np_play_btns["video"] = btn
             ctk.CTkButton(row, text="-10s", width=44, height=28,
                           command=lambda: v.seek(max(0, v.position - 10))).pack(side="left", padx=2)
             ctk.CTkButton(row, text="+10s", width=44, height=28,
@@ -3379,16 +3527,33 @@ class App(ctk.CTk):
             w.destroy()
         self._view_bibbia()
 
+    def _bib_columns_live(self) -> bool:
+        """True when the three Naviga columns are already on screen, so a
+        selection change can refresh just the columns it affects instead of
+        going through _render_bib_content — which destroys and rebuilds all
+        three scrollable frames plus the toolbar on every single click."""
+        col = getattr(self, "_bib_col_verses", None)
+        return bool(getattr(self, "_bib_content", None) is None and col and col.winfo_exists())
+
     def _bib_select_book(self, num: int, name: str):
         self._bib_book = num
         self._bib_book_name = name
         self._bib_chapter = None
         self._bib_testament = "AT" if num <= 39 else "NT"
-        self._render_bib_content()
+        if not self._bib_columns_live():
+            self._render_bib_content()
+            return
+        self._refresh_bib_col_books()      # move the selected highlight
+        self._refresh_bib_col_chapters()
+        self._refresh_bib_col_verses()
 
     def _bib_select_chapter(self, ch: int):
         self._bib_chapter = ch
-        self._render_bib_content()
+        if not self._bib_columns_live():
+            self._render_bib_content()
+            return
+        self._refresh_bib_col_chapters()   # move the selected highlight
+        self._refresh_bib_col_verses()
 
     def _render_bib_content(self):
         row = getattr(self, "_bib_content_row", None)
@@ -3451,6 +3616,11 @@ class App(ctk.CTk):
 
         self._bib_col_verses = ctk.CTkScrollableFrame(row, fg_color="transparent")
         self._bib_col_verses.grid(row=0, column=2, sticky="nsew", padx=(4, 10))
+        # Bound here, once per column widget — _render_verse_column runs again
+        # on every chapter change, and add="+" there would stack a new handler
+        # each time. add="+" itself is required: CTkScrollableFrame keeps its
+        # own <Configure> binding to refresh the scrollregion.
+        self._bib_col_verses.bind("<Configure>", self._on_bib_verse_col_resize, add="+")
         self._render_verse_column()
 
     def _refresh_bib_col_books(self):
@@ -3581,13 +3751,32 @@ class App(ctk.CTk):
                       font=theme.font_body(13, bold=True),
                       command=self._open_bible_language_settings).pack(side="left", padx=(6, 0))
 
+        # One wraplength for the whole column instead of _auto_wrap_label per
+        # verse: that binds <Configure> AND schedules an after(80) on every
+        # single label, so a 176-verse chapter (Salmi 119) fired 176 deferred
+        # wraplength changes, each one reflowing the whole column — the
+        # "loads in jerks from the side" the operator sees. One <Configure>
+        # handler on the column pushes the new width to all of them at once.
+        self._bib_verse_lbls = []
         for vnum, _t in self._bible.verses(primary, self._bib_book, self._bib_chapter):
-            self._verse_card(vnum, primary)
+            self._verse_card(vnum, primary, self._bib_verse_wrap())
+
+    def _bib_verse_wrap(self) -> int:
+        """Pixel wraplength for verse text: the column minus the verse number,
+        the Proietta button and the paddings around them."""
+        w = self._bib_col_verses.winfo_width()
+        return max(180, (w if w > 1 else 420) - 170)
+
+    def _on_bib_verse_col_resize(self, _e=None):
+        wrap = self._bib_verse_wrap()
+        for lbl in getattr(self, "_bib_verse_lbls", []):
+            if lbl.winfo_exists() and lbl.cget("wraplength") != wrap:
+                lbl.configure(wraplength=wrap)
 
     def _open_bible_language_settings(self):
         self._goto_settings("bibbia")
 
-    def _verse_card(self, vnum, primary_lang):
+    def _verse_card(self, vnum, primary_lang, wrap: int = 420):
         cat = SLOT_COLORS["versetto"]
         pd = self._proj_verse_data if self._proj_mode == "verse" else None
         is_live = bool(pd and pd.get("book") == self._bib_book
@@ -3600,10 +3789,10 @@ class App(ctk.CTk):
                      text_color=cat).pack(side="left", padx=(12, 4), pady=10)
         txt = self._bible.get_verse(primary_lang, self._bib_book, self._bib_chapter, vnum) or ""
         vlbl = ctk.CTkLabel(row, text=txt, anchor="w", justify="left",
-                            font=theme.font_body(13),
+                            wraplength=wrap, font=theme.font_body(13),
                             text_color=TEXT_PRIMARY if is_live else TEXT_SECONDARY)
         vlbl.pack(side="left", fill="x", expand=True, pady=10)
-        _auto_wrap_label(vlbl)
+        getattr(self, "_bib_verse_lbls", []).append(vlbl)
         if is_live:
             ctk.CTkLabel(row, text="In proiezione", font=theme.font_body(11, bold=True),
                          text_color=ACCENT).pack(side="right", padx=12)
@@ -4762,12 +4951,14 @@ class App(ctk.CTk):
                              text_color=TEXT_TERTIARY, font=theme.font_body(11)).pack(anchor="w")
 
             hdr("Grafica lezione")
-            ctk.CTkLabel(body, text="Un template dedicato per contesto — domanda, nota e versetto "
-                                    "citato dentro una domanda hanno ciascuno il proprio template, "
-                                    "riquadri, colori e dimensioni, indipendenti tra loro.",
+            ctk.CTkLabel(body, text="Un template dedicato per contesto — introduzione, domanda, "
+                                    "nota e versetto citato dentro una domanda hanno ciascuno il "
+                                    "proprio template, riquadri, colori e dimensioni, "
+                                    "indipendenti tra loro.",
                          text_color=TEXT_TERTIARY, wraplength=520, justify="left"
                          ).pack(anchor="w", pady=(0, 8))
-            lez_tabs = [("domanda", "Domanda", self._LESSON_BOX_DEFS),
+            lez_tabs = [("introduzione", "Introduzione", self._INTRO_BOX_DEFS),
+                       ("domanda", "Domanda", self._LESSON_BOX_DEFS),
                        ("nota", "Nota", self._NOTA_BOX_DEFS),
                        ("versetto_lezione", "Versetto citato", self._VERSETTO_LEZIONE_BOX_DEFS)]
             cur_tab = getattr(self, "_lezione_graphic_tab", "domanda")
@@ -4859,9 +5050,11 @@ class App(ctk.CTk):
                                   "testo": "#ffffff", "riferimento": SLOT_COLORS["lezione"]}
                 label_by_key = {"header": "Colore titolo", "date": "Colore data",
                                "testo": "Colore testo", "riferimento": "Colore riferimento"}
+                # "photo" is an image slot: it has a box but no color/size.
+                text_keys = [k for k, _l, _c, _b in box_defs if k != "photo"]
                 crow = ctk.CTkFrame(body, fg_color="transparent")
                 crow.pack(fill="x", pady=4)
-                for key, _label, _color, _default_box in box_defs:
+                for key in text_keys:
                     self._profile_color_swatch(crow, cur_tab, key, label_by_key[key],
                                                default_by_key[key])
 
@@ -4875,7 +5068,7 @@ class App(ctk.CTk):
                 hdr("Dimensione massima testo")
                 size_label_by_key = {"header": "Titolo", "date": "Data", "testo": "Testo",
                                      "riferimento": "Riferimento"}
-                for key, _label, _color, _default_box in box_defs:
+                for key in text_keys:
                     ctk.CTkLabel(body, text=size_label_by_key[key], anchor="w",
                                  font=theme.font_body(11, bold=True),
                                  text_color=TEXT_SECONDARY).pack(anchor="w", pady=(2, 0))
@@ -5298,6 +5491,17 @@ class App(ctk.CTk):
         ("date", "Data", "#fb923c", [0.75, 0.02, 0.22, 0.10]),
         ("testo", "Testo", "#3b82f6", list(_VERSE_TEXT_BOX_DEFAULT)),
         ("riferimento", "Riferimento", "#ec4899", list(_VERSE_REF_BOX_DEFAULT)),
+    ]
+    # Opening slide of the whole lezione: title + key verse + introductory
+    # note over the week's photo. Same box vocabulary as every other profile
+    # (header/date/photo/testo/riferimento), so it needs no new rendering
+    # code in ui/projection.py — only its own template and box positions.
+    _INTRO_BOX_DEFS = [
+        ("header", "Titolo", "#4ade80", [0.05, 0.05, 0.90, 0.13]),
+        ("date", "Data", "#fb923c", [0.75, 0.90, 0.22, 0.07]),
+        ("photo", "Foto", "#60a5fa", [0.0, 0.20, 1.0, 0.34]),
+        ("riferimento", "Versetto chiave", "#ec4899", [0.05, 0.57, 0.90, 0.12]),
+        ("testo", "Nota introduttiva", "#3b82f6", [0.05, 0.71, 0.90, 0.22]),
     ]
 
     def _graphic_profile(self, name):
@@ -6004,14 +6208,27 @@ class App(ctk.CTk):
 
     # ── lesson ─────────────────────────────────────────────────────────────────
     def _load_lesson_set(self):
+        """Cached by (path, mtime): _current_lesson() is called from the
+        detail panel, every _project_lesson_* and the right panel's 700ms
+        tick, and re-reading + json.loads()-ing a whole quarterly file that
+        often is pure waste. Keying on mtime means editing the JSON on disk
+        still picks the new version up on the next call."""
         path = self._settings.get("lesson_file", "")
         if not path or not os.path.isfile(path):
             return None
         try:
-            return lesson.LessonSet.load(path)
+            key = (path, os.path.getmtime(path))
+        except OSError:
+            return None
+        if getattr(self, "_lesson_cache_key", None) == key:
+            return self._lesson_cache
+        try:
+            ls = lesson.LessonSet.load(path)
         except Exception as ex:
             print("[Lesson] error:", ex)
             return None
+        self._lesson_cache_key, self._lesson_cache = key, ls
+        return ls
 
     def _current_lesson(self):
         ls = self._load_lesson_set()
@@ -6022,49 +6239,126 @@ class App(ctk.CTk):
             return ls, ls.get(idx)
         return ls, ls.find_for()
 
-    def _lesson_day_key(self, les: dict, dom: dict):
-        """(data_sabato, day_position) identifies a day across a whole lesson
-        without relying on the "giorno" name string, which real Lezionario
-        files have been seen to mislabel/duplicate within the same lesson
-        (e.g. two days both called "Mercoledì"). Returns None if the lesson
-        has no date or the domanda has no day grouping."""
-        sabato = les.get("data_sabato") or les.get("date") or ""
-        pos = dom.get("day_position", 0)
-        if not sabato or not pos:
-            return None
-        return sabato, pos
-
     def _lesson_date_badge(self, les: dict, dom: dict) -> str:
-        """'Lun, 29 Giu' — the day's real calendar date, computed from
-        data_sabato (the Sabbath that opens the week) + the day's 1-based
-        position within "giorni" (Domenica=1, Lunedì=2, ...)."""
-        key = self._lesson_day_key(les, dom)
-        if not key:
-            return ""
-        sabato, pos = key
-        from datetime import datetime, timedelta
-        try:
-            d = datetime.strptime(sabato.strip(), "%Y-%m-%d").date() + timedelta(days=pos)
-        except ValueError:
+        """'Lun, 17 Ago' — the day's real calendar date (see
+        lesson.day_date: the week is studied BEFORE the Sabbath the lesson
+        is discussed on, so the day is data_sabato minus what's left of the
+        week, not plus its position — which used to put every day a whole
+        week late)."""
+        d = lesson.day_date(les, dom)
+        if d is None:
             return ""
         return f"{_GIORNI[d.weekday()][:3].capitalize()}, {d.day} {_MESI[d.month - 1][:3].capitalize()}"
+
+    @staticmethod
+    def _lesson_key(les: dict) -> str:
+        """data_sabato — identifies one lesson across app restarts and is the
+        key for everything the operator attaches to it in the app (photo,
+        introduction) rather than in the JSON."""
+        return les.get("data_sabato") or les.get("date") or ""
 
     def _lesson_photo(self, les: dict) -> str:
         """One photo shared by every day/question of the whole lezione
         (not per day — see HANDOFF for the migration from the old
         per-day-within-a-lezione shape), keyed by data_sabato alone."""
-        sabato = les.get("data_sabato") or les.get("date") or ""
-        if not sabato:
+        key = self._lesson_key(les)
+        if not key:
             return ""
-        return self._settings.get("lesson_photos", {}).get(sabato, "")
+        return self._settings.get("lesson_photos", {}).get(key, "")
 
     def _set_lesson_photo(self, les: dict, path: str):
-        sabato = les.get("data_sabato") or les.get("date") or ""
-        if not sabato:
+        key = self._lesson_key(les)
+        if not key:
             return
         photos = self._settings.setdefault("lesson_photos", {})
-        photos[sabato] = path
+        photos[key] = path
         cfg.save(self._settings)
+
+    def _lesson_intro(self, les: dict):
+        """(versetto_chiave, nota_introduttiva) for the whole lezione. Read
+        from the JSON when the quarterly file carries them; otherwise from
+        what the operator typed in the app, kept per data_sabato like the
+        photo — real Lezionario exports seen so far have neither field."""
+        verse = (les.get("versetto_chiave") or les.get("memory_verse")
+                 or les.get("versetto_memoria") or "").strip()
+        note = (les.get("nota_introduttiva") or les.get("introduzione")
+                or les.get("nota_intro") or "").strip()
+        saved = self._settings.get("lesson_intro", {}).get(self._lesson_key(les), {})
+        return verse or saved.get("verse", ""), note or saved.get("note", "")
+
+    def _set_lesson_intro(self, les: dict, verse=None, note=None):
+        key = self._lesson_key(les)
+        if not key:
+            return
+        store = self._settings.setdefault("lesson_intro", {})
+        cur = dict(store.get(key, {}))
+        if verse is not None:
+            cur["verse"] = verse
+        if note is not None:
+            cur["note"] = note
+        store[key] = cur
+        cfg.save(self._settings)
+
+    def _lesson_sabato_badge(self, les: dict) -> str:
+        """'Sab, 22 Ago' — the Sabbath the lesson is discussed on, for the
+        introduction slide (the per-day badge is _lesson_date_badge)."""
+        from datetime import datetime
+        try:
+            d = datetime.strptime(self._lesson_key(les).strip(), "%Y-%m-%d").date()
+        except ValueError:
+            return ""
+        return f"{_GIORNI[d.weekday()][:3].capitalize()}, {d.day} {_MESI[d.month - 1][:3].capitalize()}"
+
+    def _lesson_title_text(self, les: dict) -> str:
+        title = les.get("title") or les.get("titolo") or "Lezione"
+        return f"{les['numero_lezione']}. {title}" if les.get("numero_lezione") else title
+
+    def _project_lesson_intro(self):
+        """Opening slide of the lezione: title, key verse, introductory note
+        and the week's photo, in the same graphic language as the questions."""
+        _ls, les = self._current_lesson()
+        if not les:
+            return
+        verse, note = self._lesson_intro(les)
+        title = self._lesson_title_text(les)
+        self._proj_mode = "lezione"
+        self._proj_lesson_idx = 0
+        win = self._ensure_projection()
+        profile = self._graphic_profile("introduzione")
+        template = profile.get("template", "")
+        if template and os.path.isfile(template):
+            saved_boxes = profile.get("boxes", {})
+            boxes = {key: saved_boxes.get(key, default_box)
+                     for key, _l, _c, default_box in self._INTRO_BOX_DEFS}
+            colors = profile.get("colors", {})
+            sizes = profile.get("max_sizes", {})
+            header_color = colors.get("header") or SLOT_COLORS["lezione"]
+            win.show_lesson_graphic(
+                template, boxes, header_text=title,
+                date_text=self._lesson_sabato_badge(les),
+                photo_path=self._lesson_photo(les),
+                header_color=header_color,
+                date_color=colors.get("date") or header_color,
+                header_max_size=sizes.get("header") or None,
+                date_max_size=sizes.get("date") or None,
+                testo_text=note, testo_color=colors.get("testo") or "#ffffff",
+                testo_max_size=sizes.get("testo") or None,
+                riferimento_text=verse,
+                riferimento_color=colors.get("riferimento") or header_color,
+                riferimento_max_size=sizes.get("riferimento") or None,
+                font_family=self._profile_font_family("introduzione")
+                           or self._settings.get("verse_font_family", "Helvetica"))
+        else:
+            win.set_background(self._settings.get("verse_bg_color", "#0b132b"),
+                               self._settings.get("verse_bg_image", ""))
+            win.set_text_color(self._settings.get("verse_text_color", "#ffffff"))
+            body = "\n\n".join(t for t in (verse, note) if t) or title
+            win.show_text(body, secondary=title, secondary_pos="top", autofit=True,
+                          secondary_scale=0.05, secondary_bold=True,
+                          secondary_color=self._settings.get("lesson_header_color",
+                                                             SLOT_COLORS["lezione"]))
+        self._proj_pill.configure(text="● Lezione — Introduzione", text_color="#22c55e")
+        self._sync_center_to_projection()
 
     def _pick_lesson_photo(self, les: dict):
         p = filedialog.askopenfilename(title="Foto della lezione",
@@ -6108,6 +6402,7 @@ class App(ctk.CTk):
         self._lesson_browse_idx = idx
         self._lesson_verse_ctx = {"book": book, "chapter": chapter, "verses": verses, "pos": 0,
                                   "les": les, "dom": dom}
+        self._sync_center_to_projection()
 
     def _lesson_header_date(self, les: dict, dom: dict):
         """(header_text, date_text) for the day `dom` belongs to — shared by
@@ -6173,6 +6468,7 @@ class App(ctk.CTk):
                           secondary_pos="top", autofit=True, secondary_scale=0.045,
                           secondary_color=header_color)
         self._proj_pill.configure(text=f"● Lezione — {kicker}", text_color="#22c55e")
+        self._sync_center_to_projection()
 
     def _project_lesson_note(self, idx: int):
         _ls, les = self._current_lesson()
@@ -6198,6 +6494,7 @@ class App(ctk.CTk):
         kicker = f"{dom['day']} — Domanda {dom['day_index'] + 1}/{dom['day_count']}" if dom["day"] \
             else f"Domanda {dom['day_index'] + 1}/{dom['day_count']}"
         self._proj_pill.configure(text=f"● Lezione — Nota ({kicker})", text_color="#22c55e")
+        self._sync_center_to_projection()
 
     def _show_lesson_profile_text(self, win, profile_name, box_defs, les, dom, main_text, ref_text=""):
         """Shared by _project_lesson_note, _project_lesson_raw_text, and
@@ -6255,6 +6552,20 @@ class App(ctk.CTk):
         self._show_lesson_profile_text(win, "versetto_lezione", self._VERSETTO_LEZIONE_BOX_DEFS,
                                        les, dom, text, question)
         self._proj_pill.configure(text="● Lezione — Versetto (riferimento)", text_color="#22c55e")
+        self._sync_center_to_projection()
+
+    def _sync_center_to_projection(self):
+        """One-way follow: projection → centre panel. After the projected
+        domanda moves (keyboard arrows, right-panel ‹ ›, Domanda/Nota), the
+        centre panel jumps to the same question. Deliberately NOT the other
+        way round — browsing with ‹ Precedente / Successiva › or the day
+        pills only moves the preview and must never change what the
+        congregation sees."""
+        if self._current != "scaletta":
+            return
+        slot = self._sel_slot
+        if slot is not None and slot.slot_type == "lezione":
+            self._render_center()
 
     def _lesson_step(self, delta: int):
         if self._proj_mode != "lezione":

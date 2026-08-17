@@ -16,7 +16,7 @@ Two question schemas are supported and normalized by flatten_domande():
 """
 import json
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict, Any
 
 
@@ -49,10 +49,22 @@ class LessonSet:
         return cls([l for l in lessons if isinstance(l, dict)], source=path)
 
     def find_for(self, day: Optional[date] = None) -> Optional[Dict[str, Any]]:
+        """The lesson in force on `day`.
+
+        A quarterly lesson is dated by "data_sabato", the Sabbath on which it
+        is *discussed* — the six daily sections (Domenica…Venerdì) are studied
+        during the week that LEADS UP to it. So a lesson is current for the
+        whole Sunday→Saturday window ending on its data_sabato, not on that
+        one Saturday alone (which is why "lezione automatica" only ever found
+        a lesson on Saturdays before). "date"/"date_start"/"date_end" keep
+        their old exact-day / explicit-range meaning."""
         day = day or date.today()
         for les in self.lessons:
-            single = _parse(les.get("date") or les.get("data_sabato") or "")
+            single = _parse(les.get("date") or "")
             if single and single == day:
+                return les
+            sabato = _parse(les.get("data_sabato") or "")
+            if sabato and sabato - timedelta(days=6) <= day <= sabato:
                 return les
             ds = _parse(les.get("date_start", ""))
             de = _parse(les.get("date_end", ""))
@@ -73,6 +85,20 @@ class LessonSet:
         if 0 <= index < len(self.lessons):
             return self.lessons[index]
         return None
+
+
+def day_date(lesson: Dict[str, Any], dom: Dict[str, Any]) -> Optional[date]:
+    """Calendar date of the day `dom` belongs to.
+
+    data_sabato is the Sabbath on which the lesson is DISCUSSED; the six
+    daily sections are studied in the week before it, so Domenica
+    (day_position 1) is data_sabato - 6 and Venerdì (6) is data_sabato - 1.
+    None when the lesson has no date or the domanda has no day grouping."""
+    sabato = _parse(lesson.get("data_sabato") or lesson.get("date") or "")
+    pos = dom.get("day_position", 0)
+    if not sabato or not pos:
+        return None
+    return sabato - timedelta(days=7 - pos)
 
 
 def _normalize_domanda(d: Dict[str, Any], day: str, day_title: str,
